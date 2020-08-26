@@ -48,6 +48,7 @@ namespace WindowsFormsApp2
         public bool detection_running = false; //is detection running right now or not
         public int file_access_delay = 10; //delay before accessing new file in ms
         public int retry_delay = 10; //delay for first file acess retry - will increase on each retry
+        public static string network_folder = Properties.Settings.Default.network_folder;
         List<Camera> CameraList = new List<Camera>(); //list containing all cameras
 
         static HttpClient client = new HttpClient();
@@ -176,6 +177,7 @@ namespace WindowsFormsApp2
             tb_telegram_token.Text = telegram_token;
             cb_log.Checked = log_everything;
             cb_send_errors.Checked = send_errors;
+            tb_network_folder.Text = network_folder;
 
             //---------------------------------------------------------------------------
             //STATS TAB
@@ -570,6 +572,21 @@ namespace WindowsFormsApp2
             }
         }
 
+        public void CopyImage(string camera_name, string image_path)
+        {
+            var extension = System.IO.Path.GetExtension(image_path);
+            var dest_path = System.IO.Path.Combine(network_folder, camera_name + extension);
+
+            try
+            {
+                System.IO.File.Copy(image_path, dest_path, true);
+            }
+            catch
+            {
+                Log($"ERROR: Could not copy image {image_path} to network path {dest_path}");
+            }
+        }
+
         //send image to Telegram
         public async Task TelegramUpload(string image_path)
         {
@@ -696,6 +713,14 @@ namespace WindowsFormsApp2
                     Log("   Uploading image to Telegram...");
                     await TelegramUpload(image_path);
                     Log("   -> Sent image to Telegram.");
+                }
+
+                //copy image to network folder
+                if (CameraList[index].image_copy_enabled)
+                {
+                    Log("   Copying image to network folder...");
+                    CopyImage(CameraList[index].name, image_path);
+                    Log("   -> Image copied to network folder.");
                 }
             }
             else
@@ -958,29 +983,32 @@ namespace WindowsFormsApp2
                 Log("ERROR in ReziseListViews(), checking if scrollbar is shown and subtracting scrollbar width failed.");
             }
 
-            if (width > 350) // if the list is wider than 350px, aditionally show the 'detections' column and mainly grow this column
+            if (list1.Columns.Count > 5)
             {
-                //set left list column width segmentation
-                list1.Columns[0].Width = width * 0 / 100; //filename
-                list1.Columns[1].Width = 120 + (width - 350) * 25 / 1000; //date
-                list1.Columns[2].Width = 120 + (width - 350) * 25 / 1000; //cam name
-                list1.Columns[3].Width = 80 + (width - 350) * 95 / 100; //obj and confidences
-                list1.Columns[4].Width = width * 0 / 100; // object positions of all detected objects separated by ";"
-                list1.Columns[5].Width = 30; //checkmark if something relevant detected or not
+                if (width > 350) // if the list is wider than 350px, aditionally show the 'detections' column and mainly grow this column
+                {
+                    //set left list column width segmentation
+                    list1.Columns[0].Width = width * 0 / 100; //filename
+                    list1.Columns[1].Width = 120 + (width - 350) * 25 / 1000; //date
+                    list1.Columns[2].Width = 120 + (width - 350) * 25 / 1000; //cam name
+                    list1.Columns[3].Width = 80 + (width - 350) * 95 / 100; //obj and confidences
+                    list1.Columns[4].Width = width * 0 / 100; // object positions of all detected objects separated by ";"
+                    list1.Columns[5].Width = 30; //checkmark if something relevant detected or not
 
-            }
-            else //if the form is smaller than 350px in width, don't show the detections column
-            {
-                //set left list column width segmentation
-                list1.Columns[0].Width = width * 0 / 100; //filename
-                list1.Columns[1].Width = width * 47 / 100; //date
-                list1.Columns[2].Width = width * 43 / 100; //cam name
-                list1.Columns[3].Width = width * 0 / 100; //obj and confidences
-                list1.Columns[4].Width = width * 0 / 100; // object positions of all detected objects separated by ";"
-                list1.Columns[5].Width = width * 10 / 100; //checkmark if something relevant detected or not
-            }
+                }
+                else //if the form is smaller than 350px in width, don't show the detections column
+                {
+                    //set left list column width segmentation
+                    list1.Columns[0].Width = width * 0 / 100; //filename
+                    list1.Columns[1].Width = width * 47 / 100; //date
+                    list1.Columns[2].Width = width * 43 / 100; //cam name
+                    list1.Columns[3].Width = width * 0 / 100; //obj and confidences
+                    list1.Columns[4].Width = width * 0 / 100; // object positions of all detected objects separated by ";"
+                    list1.Columns[5].Width = width * 10 / 100; //checkmark if something relevant detected or not
+                }
 
-            list2.Columns[0].Width = list2.Width - 4; //resize camera list column
+                list2.Columns[0].Width = list2.Width - 4; //resize camera list column
+            }
 
             //resume layout again
             tableLayoutPanel7.ResumeLayout();
@@ -1927,7 +1955,7 @@ namespace WindowsFormsApp2
         }
 
         //add camera
-        private string AddCamera(string name, string prefix, string trigger_urls_as_string, string triggering_objects_as_string, bool telegram_enabled, bool enabled, double cooldown_time, int threshold_lower, int threshold_upper)
+        private string AddCamera(string name, string prefix, string trigger_urls_as_string, string triggering_objects_as_string, bool telegram_enabled, bool enabled, double cooldown_time, int threshold_lower, int threshold_upper, bool image_copy_enabled)
         {
             //check if camera with specified name already exists. If yes, then abort.
             foreach (Camera c in CameraList)
@@ -1947,7 +1975,7 @@ namespace WindowsFormsApp2
             }
 
             Camera cam = new Camera(); //create new camera object
-            cam.WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper); //set parameters
+            cam.WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper, image_copy_enabled); //set parameters
             CameraList.Add(cam); //add created camera object to CameraList
 
             //add camera to list2
@@ -1969,7 +1997,7 @@ namespace WindowsFormsApp2
         }
 
         //change settings of camera
-        private string UpdateCamera(string oldname, string name, string prefix, string trigger_urls_as_string, string triggering_objects_as_string, bool telegram_enabled, bool enabled, double cooldown_time, int threshold_lower, int threshold_upper)
+        private string UpdateCamera(string oldname, string name, string prefix, string trigger_urls_as_string, string triggering_objects_as_string, bool telegram_enabled, bool enabled, double cooldown_time, int threshold_lower, int threshold_upper, bool image_copy_enabled)
         {
             //1. CHECK NEW VALUES 
             //check if name is empty
@@ -2005,7 +2033,7 @@ namespace WindowsFormsApp2
             }
 
             //2. WRITE CONFIG
-            CameraList[index].WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper); //set parameters
+            CameraList[index].WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper, image_copy_enabled); //set parameters
 
             //3. UPDATE LIST2
             //update list2 entry
@@ -2139,6 +2167,18 @@ namespace WindowsFormsApp2
                     cb_telegram.Checked = false;
                 }
 
+                //load copy on/off option
+                if (CameraList[i].image_copy_enabled)
+                {
+                    cb_copy.Checked = true;
+                }
+                else
+                {
+                    cb_copy.Checked = false;
+                }
+
+
+
 
                 //load triggering objects
                 //first create arrays with all checkboxes stored in
@@ -2209,7 +2249,7 @@ namespace WindowsFormsApp2
                 if (result == DialogResult.OK)
                 {
                     string name = form.text;
-                    AddCamera(name, name, "", "person", false, true, 0, 0, 100);
+                    AddCamera(name, name, "", "person", false, true, 0, 0, 100, false);
                 }
             }
         }
@@ -2245,7 +2285,7 @@ namespace WindowsFormsApp2
 
                 //2. UPDATE SETTINGS
                 // save new camera settings, display result in MessageBox
-                string result = UpdateCamera(list2.SelectedItems[0].Text, tbName.Text, tbPrefix.Text, tbTriggerUrl.Text, triggering_objects_as_string, cb_telegram.Checked, cb_enabled.Checked, cooldown_time, threshold_lower, threshold_upper);
+                string result = UpdateCamera(list2.SelectedItems[0].Text, tbName.Text, tbPrefix.Text, tbTriggerUrl.Text, triggering_objects_as_string, cb_telegram.Checked, cb_enabled.Checked, cooldown_time, threshold_lower, threshold_upper, cb_copy.Checked);
 
             }
             DisplayCameraSettings();
@@ -2322,6 +2362,7 @@ namespace WindowsFormsApp2
             Properties.Settings.Default.telegram_token = tb_telegram_token.Text;
             Properties.Settings.Default.log_everything = cb_log.Checked;
             Properties.Settings.Default.send_errors = cb_send_errors.Checked;
+            Properties.Settings.Default.network_folder = tb_network_folder.Text;
             Properties.Settings.Default.Save();
 
             //update variables
@@ -2332,6 +2373,7 @@ namespace WindowsFormsApp2
             telegram_token = Properties.Settings.Default.telegram_token;
             log_everything = Properties.Settings.Default.log_everything;
             send_errors = Properties.Settings.Default.send_errors;
+            network_folder = Properties.Settings.Default.network_folder;
 
             //update fswatcher to watch new input folder
             UpdateFSWatcher();

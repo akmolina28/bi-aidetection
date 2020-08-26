@@ -17,6 +17,7 @@ namespace WindowsFormsApp2
         public string trigger_urls_as_string;
         public string[] trigger_urls;
         public bool telegram_enabled;
+        public bool image_copy_enabled;
         public bool enabled;
         public DateTime last_trigger_time;
         public double cooldown_time;
@@ -35,7 +36,7 @@ namespace WindowsFormsApp2
         public int stats_irrelevant_alerts; //alert image contained irrelevant object counter
 
         //write config to file
-        public void WriteConfig(string _name, string _prefix, string _triggering_objects_as_string, string _trigger_urls_as_string, bool _telegram_enabled, bool _enabled, double _cooldown_time, int _threshold_lower, int _threshold_upper)
+        public void WriteConfig(string _name, string _prefix, string _triggering_objects_as_string, string _trigger_urls_as_string, bool _telegram_enabled, bool _enabled, double _cooldown_time, int _threshold_lower, int _threshold_upper, bool _image_copy_enabled)
         {
             //if camera name (= settings file name) changed, the old settings file must be deleted
             if(name != _name)
@@ -51,6 +52,7 @@ namespace WindowsFormsApp2
                 triggering_objects_as_string = _triggering_objects_as_string;
                 trigger_urls_as_string = _trigger_urls_as_string;
                 telegram_enabled = _telegram_enabled;
+                image_copy_enabled = _image_copy_enabled;
                 enabled = _enabled;
                 cooldown_time = _cooldown_time;
                 threshold_lower = _threshold_lower;
@@ -99,7 +101,14 @@ namespace WindowsFormsApp2
                 sw.WriteLine($"Certainty threshold: \"{threshold_lower},{threshold_upper}\" (format: \"lower % limit, upper % limit\")");
                 sw.WriteLine($"STATS: alerts,irrelevant alerts,false alerts: \"{stats_alerts.ToString()}, {stats_irrelevant_alerts.ToString()}, {stats_false_alerts.ToString()}\" ");
 
-
+                if (image_copy_enabled == true)
+                {
+                    sw.WriteLine("Copy images: \"yes\"(options: yes, no)");
+                }
+                else
+                {
+                    sw.WriteLine("Copy images: \"no\"(options: yes, no)");
+                }
             }
         }
 
@@ -181,6 +190,16 @@ namespace WindowsFormsApp2
             Int32.TryParse(content[7].Split('"')[1].Split(',')[0], out stats_alerts); //bedeutet: Zeile 7 (6+1), aufgetrennt an ", 2tes (1+1) Resultat, aufgeteilt an ',', davon 1. Resultat  
             Int32.TryParse(content[7].Split('"')[1].Split(',')[1], out stats_irrelevant_alerts);
             Int32.TryParse(content[7].Split('"')[1].Split(',')[2], out stats_false_alerts);
+
+            //read copy enabled
+            if (content[8].Split('"')[1].Replace(" ", "") == "yes")
+            {
+                image_copy_enabled = true;
+            }
+            else
+            {
+                image_copy_enabled = false;
+            }
         }
 
 
@@ -188,21 +207,21 @@ namespace WindowsFormsApp2
         public void IncrementAlerts()
         {
             stats_alerts++;
-            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper);
+            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper, image_copy_enabled);
         }
 
         //one alarm that contained no objects counter
         public void IncrementFalseAlerts()
         {
             stats_false_alerts++;
-            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper);
+            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper, image_copy_enabled);
         }
 
         //one alarm that contained irrelevant objects counter
         public void IncrementIrrelevantAlerts()
         {
             stats_irrelevant_alerts++;
-            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper);
+            WriteConfig(name, prefix, triggering_objects_as_string, trigger_urls_as_string, telegram_enabled, enabled, cooldown_time, threshold_lower, threshold_upper, image_copy_enabled);
         }
 
 
